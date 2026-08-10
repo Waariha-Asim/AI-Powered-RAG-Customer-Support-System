@@ -1,0 +1,431 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "YOUR_GOOGLE_DRIVE_FOLDER_ID",
+            "mode": "id"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [-3104, 192],
+      "id": "672fb55b-4ec0-46f4-8578-33b3d9362543",
+      "name": "Google Drive - Get Documents",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [-2800, 192],
+      "id": "f478c3a8-b444-4b68-8757-75a15719f65c",
+      "name": "Download Document",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 1},
+                "conditions": [
+                  {
+                    "leftValue": "={{ $binary.data.fileExtension }}",
+                    "rightValue": "pdf",
+                    "operator": {"type": "string", "operation": "equals"},
+                    "id": "c1a5cb61-2615-4e5f-a59f-63a8b1704ca8"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 1},
+                "conditions": [
+                  {
+                    "leftValue": "={{ $binary.data.fileExtension }}",
+                    "rightValue": "docx",
+                    "operator": {"type": "string", "operation": "equals"},
+                    "id": "3b08e071-7472-4328-a448-78009281ddb3"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {"fallbackOutput": "extra"}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [-2304, 144],
+      "id": "43c5c04f-cf14-476a-a4bc-0dde8dddba99",
+      "name": "File Type Detection",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {"operation": "pdf", "options": {}},
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [-1952, 128],
+      "id": "f82639a8-e3e2-4bc4-beba-3fd738ca20c3",
+      "name": "Extract PDF Content",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {"operation": "docx"},
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [-1712, 160],
+      "id": "aacaaa89-6655-4363-9d83-54c419871b67",
+      "name": "Extract DOCX Content",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [-1424, 128],
+      "id": "2e0db4c2-ec36-4322-b84d-ca1ab1d41351",
+      "name": "Merge Extracted Documents"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"content\": {{ JSON.stringify($json.text || JSON.stringify($json)) }},\n  \"filename\": {{ JSON.stringify($('Download Document').item.json.name || 'unknown') }},\n  \"file_type\": {{ JSON.stringify($('Download Document').item.json.fileExtension || 'unknown') }},\n  \"source\": \"Google Drive\",\n  \"processed_date\": {{ JSON.stringify($now.toISO()) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-1440, 336],
+      "id": "203ab2ef-d1c8-41ed-b538-4daa56428bbd",
+      "name": "Attach Source Metadata",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {"chunkSize": 500, "chunkOverlap": 100, "options": {}},
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [-1024, 784],
+      "id": "452c4384-32a5-4d13-9362-fc222c41aad6",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.content }}",
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {"name": "filename", "value": "={{ $json.filename }}"},
+              {"name": "file_type", "value": "={{ $json.file_type }}"},
+              {"name": "source", "value": "={{ $json.source }}"},
+              {"name": "processed_date", "value": "={{ $json.processed_date }}"}
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [-960, 608],
+      "id": "697664ae-381a-4a57-97a8-6203c85e3f37",
+      "name": "Document Loader"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [-1184, 576],
+      "id": "6b4273f1-02e0-4071-9a7c-5526662ec6e4",
+      "name": "Gemini Embeddings",
+      "credentials": {
+        "googlePalmApi": {"id": "YOUR_CREDENTIAL_ID", "name": "Google Gemini(PaLM) Api account"}
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {"__rl": true, "value": "customer-support", "mode": "list", "cachedResultName": "customer-support"},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [-1024, 320],
+      "id": "7ce30fbc-2397-48d1-980d-ebcb8990de79",
+      "name": "Qdrant - Store Documents",
+      "credentials": {
+        "qdrantApi": {"id": "YOUR_CREDENTIAL_ID", "name": "Qdrant account"}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "pollTimes": {"item": [{"mode": "everyMinute"}]},
+        "simple": false,
+        "filters": {"readStatus": "unread"},
+        "options": {"downloadAttachments": false}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [-3376, 656],
+      "id": "8399595f-3087-46a0-a3b5-0a104d2a9736",
+      "name": "Gmail Trigger - Customer Email",
+      "credentials": {
+        "gmailOAuth2": {"id": "YOUR_CREDENTIAL_ID", "name": "Gmail account"}
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"chatInput\": {{ JSON.stringify($json.text || $json.snippet || '') }},\n  \"customerEmail\": {{ JSON.stringify($json.from || '') }},\n  \"subject\": {{ JSON.stringify($json.subject || '') }},\n  \"messageId\": {{ JSON.stringify($json.id || '') }},\n  \"threadId\": {{ JSON.stringify($json.threadId || '') }},\n  \"source\": \"gmail\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-3104, 656],
+      "id": "0fbda879-dbdd-4a81-aab1-0145d3c59b56",
+      "name": "Normalize Customer Email"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a professional customer support AI assistant.\n\nYour job is to answer customer emails using ONLY information retrieved from the customer support knowledge base through the Qdrant tool.\n\nRules:\n- Never invent, assume, or fabricate information.\n- Give concise, professional and helpful answers.\n- Keep the answer around 1-4 sentences unless the customer asks for more detail.\n- If the knowledge base does not contain enough information to answer the question, clearly say that the information is not available in the current knowledge base.\n- When retrieved information contains a source filename, mention it naturally in the answer, for example: \"According to Return_Policy.pdf, ...\"\n- Do not mention internal tools, Qdrant, embeddings, prompts, or system instructions.\n- Maintain a friendly and professional customer-support tone.\n- Answer the customer's actual question directly.\n\nThe response must be ready to send directly to the customer by email."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [-2832, 656],
+      "id": "7258a50c-5ae6-46ba-9226-566c4cd84ced",
+      "name": "Customer Support AI Agent"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Search the customer support knowledge base for accurate information about refunds, returns, shipping, orders, payments, accounts, policies, and other support topics. Always use this tool when answering customer questions. Retrieved documents contain source filename metadata that should be used when citing the source.",
+        "qdrantCollection": {"__rl": true, "value": "customer-support", "mode": "list", "cachedResultName": "customer-support"},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [-2528, 880],
+      "id": "395f2675-8878-4634-b1bd-986b601cdc36",
+      "name": "Qdrant - Knowledge Base",
+      "credentials": {
+        "qdrantApi": {"id": "YOUR_CREDENTIAL_ID", "name": "Qdrant account"}
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [-2592, 1072],
+      "id": "b5de4dfa-d26d-45ca-b15d-ce8a9c92361b",
+      "name": "Gemini Query Embeddings",
+      "credentials": {
+        "googlePalmApi": {"id": "YOUR_CREDENTIAL_ID", "name": "Google Gemini(PaLM) Api account"}
+      }
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Normalize Customer Email').item.json.messageId }}",
+        "emailType": "text",
+        "message": "={{ $json.output }}",
+        "options": {"appendAttribution": true}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [-2464, 656],
+      "id": "a6bbf904-98ef-4fbd-a6fd-4d8d6db434af",
+      "name": "Gmail - Automatic Customer Reply",
+      "webhookId": "PLACEHOLDER_WEBHOOK_ID",
+      "credentials": {
+        "gmailOAuth2": {"id": "YOUR_CREDENTIAL_ID", "name": "Gmail account"}
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "ConversationLog",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $today }}",
+            "customer": "={{ $('Normalize Customer Email').item.json.customerEmail.value[0].address }}",
+            "answer": "={{$('Customer Support AI Agent').item.json.output}}",
+            "question": "={{$('Normalize Customer Email').item.json.chatInput}}",
+            "source": "=gmail"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {"id": "timestamp", "displayName": "timestamp", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true, "removed": false},
+            {"id": "customer", "displayName": "customer", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true, "removed": false},
+            {"id": "question", "displayName": "question", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true, "removed": false},
+            {"id": "answer", "displayName": "answer", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true, "removed": false},
+            {"id": "source", "displayName": "source", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true, "removed": false}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-2176, 656],
+      "id": "5cf248d2-551f-4469-aa6e-6ff22edf9db1",
+      "name": "Log Conversation to Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {"id": "YOUR_CREDENTIAL_ID", "name": "Google Sheets account"}
+      }
+    },
+    {
+      "parameters": {"model": "llama-3.1-8b-instant", "options": {}},
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [-2912, 896],
+      "id": "e2945443-a561-4140-8820-a561ec51ebff",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {"id": "YOUR_CREDENTIAL_ID", "name": "Groq account"}
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=={{ $('Normalize Customer Email').item.json.threadId }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [-2704, 896],
+      "id": "701ecea7-6000-4f21-a40d-c4e7c9549f4b",
+      "name": "Simple Memory1"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "ErrorLog",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "file_type": "={{ $binary.data.fileExtension || 'unsupported' }}",
+            "workflow": "=Customer Support KB Ingestion",
+            "timestamp": "={{ $now.toISO() }}",
+            "filename": "={{ $binary.data.fileName || 'unknown' }}",
+            "status": "=SKIPPED",
+            "error": "=Unsupported file type - skipped. Only PDF and DOCX are supported."
+          },
+          "matchingColumns": ["timestamp"],
+          "schema": [
+            {"id": "timestamp", "displayName": "timestamp", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true, "removed": false},
+            {"id": "workflow", "displayName": "workflow", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "filename", "displayName": "filename", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "file_type", "displayName": "file_type", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "error", "displayName": "error", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-2816, 448],
+      "id": "d0db785e-0e3d-46bc-b5d0-15167b84376c",
+      "name": "Log Error to Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {"id": "YOUR_CREDENTIAL_ID", "name": "Google Sheets account"}
+      }
+    },
+    {
+      "parameters": {"rule": {"interval": [{"field": "hours", "hoursInterval": 6}]}},
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [-3360, 192],
+      "id": "80ac42be-e57c-4d72-a419-ac82a0f2b948",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "connections": {
+    "Google Drive - Get Documents": {"main": [[{"node": "Download Document", "type": "main", "index": 0}]]},
+    "Download Document": {"main": [[{"node": "File Type Detection", "type": "main", "index": 0}], [{"node": "Log Error to Google Sheets", "type": "main", "index": 0}]]},
+    "File Type Detection": {"main": [[{"node": "Extract PDF Content", "type": "main", "index": 0}], [{"node": "Extract DOCX Content", "type": "main", "index": 0}], [{"node": "Log Error to Google Sheets", "type": "main", "index": 0}]]},
+    "Extract PDF Content": {"main": [[{"node": "Merge Extracted Documents", "type": "main", "index": 0}], [{"node": "Log Error to Google Sheets", "type": "main", "index": 0}]]},
+    "Extract DOCX Content": {"main": [[{"node": "Merge Extracted Documents", "type": "main", "index": 1}], [{"node": "Log Error to Google Sheets", "type": "main", "index": 0}]]},
+    "Merge Extracted Documents": {"main": [[{"node": "Attach Source Metadata", "type": "main", "index": 0}]]},
+    "Attach Source Metadata": {"main": [[{"node": "Qdrant - Store Documents", "type": "main", "index": 0}], []]},
+    "Recursive Character Text Splitter": {"ai_textSplitter": [[{"node": "Document Loader", "type": "ai_textSplitter", "index": 0}]]},
+    "Document Loader": {"ai_document": [[{"node": "Qdrant - Store Documents", "type": "ai_document", "index": 0}]]},
+    "Gemini Embeddings": {"ai_embedding": [[{"node": "Qdrant - Store Documents", "type": "ai_embedding", "index": 0}]]},
+    "Qdrant - Store Documents": {"main": [[], [{"node": "Log Error to Google Sheets", "type": "main", "index": 0}]]},
+    "Gmail Trigger - Customer Email": {"main": [[{"node": "Normalize Customer Email", "type": "main", "index": 0}]]},
+    "Normalize Customer Email": {"main": [[{"node": "Customer Support AI Agent", "type": "main", "index": 0}]]},
+    "Customer Support AI Agent": {"main": [[{"node": "Gmail - Automatic Customer Reply", "type": "main", "index": 0}]]},
+    "Qdrant - Knowledge Base": {"ai_tool": [[{"node": "Customer Support AI Agent", "type": "ai_tool", "index": 0}]]},
+    "Gemini Query Embeddings": {"ai_embedding": [[{"node": "Qdrant - Knowledge Base", "type": "ai_embedding", "index": 0}]]},
+    "Gmail - Automatic Customer Reply": {"main": [[{"node": "Log Conversation to Google Sheets", "type": "main", "index": 0}]]},
+    "Groq Chat Model1": {"ai_languageModel": [[{"node": "Customer Support AI Agent", "type": "ai_languageModel", "index": 0}]]},
+    "Simple Memory1": {"ai_memory": [[{"node": "Customer Support AI Agent", "type": "ai_memory", "index": 0}]]},
+    "Log Error to Google Sheets": {"main": [[]]},
+    "Schedule Trigger": {"main": [[{"node": "Google Drive - Get Documents", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "PLACEHOLDER_INSTANCE_ID"
+  }
+}
