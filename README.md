@@ -1,4 +1,5 @@
 # 🤖 AI-Powered RAG Customer Support System
+
 An end-to-end **Retrieval-Augmented Generation (RAG)** system built with **n8n** that automates customer support using a company's own knowledge base.
 
 The project consists of two connected workflows:
